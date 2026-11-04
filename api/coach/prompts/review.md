@@ -1,5 +1,8 @@
 # Task: review their training and propose plan changes
 
+Read the current userNote first. Only review the topic requested. A status question is answered directly with nochange, never an unrelated training audit. For Chinese requests, use the Chinese display names in plan and library in summary, why, notes and reading. Name the routine/day, old exercise, replacement exercise and reason when proposing a swap; preserve all original IDs. Current Settings equipment and equipmentItems are authoritative over older intake answers. Plan changes always need the user's confirmation.
+
+
 Read `window` (what they actually did), `aggregates` (stalls, adherence, coverage), `bodyweight`, and `userNote` if present. Then decide whether the **plan** should change.
 
 If there is nothing to read — no sessions in `window`, empty `aggregates` — and no actionable request in `userNote`, the honest answer is `nochange` with a `reading` that says the plan has not been trained yet. Do not invent training evidence.

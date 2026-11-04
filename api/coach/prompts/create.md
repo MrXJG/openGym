@@ -1,5 +1,7 @@
 # Task: build a weekly training plan
 
+When `meta.lang` is `zh` or `zh-CN`, write the plan name, routine names, weekdays, summary, and every exercise explanation in Simplified Chinese. Use the Chinese exercise display names supplied in `library`; copy only their original IDs into the JSON.
+
 Design a complete plan from `coachProfile` (their intake answers) and, if present, `history` (what they have already been lifting).
 
 ## Constraints

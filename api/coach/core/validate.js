@@ -14,7 +14,7 @@
  * model verbatim for the one repair round (FR-48) — and a list of six problems produces a
  * better second attempt than the first of them does.
  */
-import { libraryHas, libraryName, equipmentAllows, isDumbbellLift } from './library.js';
+import { LIB_BY_ID, specificEquipmentAllows, libraryHas, libraryName, equipmentAllows, isDumbbellLift } from './library.js';
 
 // A catalogue exercise the person's equipment does not reach, and that was not in the library
 // slice they were offered (which already pins what they train). The prompt says "their
@@ -22,7 +22,9 @@ import { libraryHas, libraryName, equipmentAllows, isDumbbellLift } from './libr
 // instead of the plan arriving with a machine they do not own.
 // Someone who owns no dumbbells (ctx.noDumbbells) is held to it even with no equipment stated.
 const offEquipment = (ctx, id) => libraryHas(id) && !(ctx.offered && ctx.offered.has(id))
-  && ((!!ctx.equipment?.length && !equipmentAllows(ctx.equipment, id)) || (ctx.noDumbbells === true && isDumbbellLift(id)));
+  && ((!!ctx.equipment?.length && !equipmentAllows(ctx.equipment, id)) || (ctx.noDumbbells === true && isDumbbellLift(id)))
+  || libraryHas(id) && ctx.equipmentSpecified === true && (!equipmentAllows(ctx.equipment, id, { specified: true, accessories: !!ctx.equipmentItems?.length })
+    || (!!ctx.equipmentItems?.length && !specificEquipmentAllows(ctx.equipmentItems, LIB_BY_ID.get(id), ctx.equipment)));
 const OFF_EQUIPMENT = (where, id) => `${where} "${id}" needs equipment the user does not have — use an exercise from the library provided in the payload`;
 import { glyphStr } from './glyphs.js';
 
@@ -258,7 +260,14 @@ export function validatePlan(data, ctx = {}) {
  */
 export function validateReview(data, plan, ctx = {}) {
   if (!data || typeof data !== 'object') return fail(['the answer was not an object']);
+  const equipmentMismatches = Array.isArray(ctx.equipmentMismatches) ? ctx.equipmentMismatches : [];
+  const mismatchKey = x => `${x.routineId}::${x.exId}`;
+  const mismatchKeys = new Set(equipmentMismatches.map(mismatchKey));
   if (data.nochange) {
+    if (equipmentMismatches.length) {
+      return fail(['equipmentMismatches is not empty; every listed unavailable-equipment exercise must be handled with remove-exercise or swap-exercise before returning nochange: '
+        + equipmentMismatches.map(x => `${x.routineId}/${x.exId}`).join(', ')]);
+    }
     return { ok: true, nochange: true, reading: clampStr(data.reading || data.summary || '', 1200) };
   }
   const errors = [];
@@ -358,7 +367,7 @@ export function validateReview(data, plan, ctx = {}) {
         if (perSide && isInt(a.reps, 1, 100) && a.reps % 2) { errors.push(ODD_PER_SIDE(`${where}.after.reps`)); return; }
         if (isInt(a.repsMax, 1, 100) && isInt(a.repsMin, 1, 100) && a.repsMax < a.repsMin) { errors.push(INVERTED_RANGE(`${where}.after`)); return; }
         out.after = {
-          id: a.id, name: libraryName(a.id),
+          id: a.id, name: libraryName(a.id, ctx.lang),
           sets: isInt(a.sets, 1, 10) ? a.sets : 3,
           ...(MODES.includes(a.mode) ? { mode: a.mode } : { mode: 'reps' }),
           ...(isInt(a.reps, 1, 100) ? { reps: a.reps } : {}),
@@ -386,7 +395,7 @@ export function validateReview(data, plan, ctx = {}) {
         if (offEquipment(ctx, a.id)) { errors.push(OFF_EQUIPMENT(`${where}.after.id`, a.id)); return; }
         if (a.id === target.exId) { errors.push(`${where} swaps an exercise for itself`); return; }
         out.after = {
-          id: a.id, name: libraryName(a.id),
+          id: a.id, name: libraryName(a.id, ctx.lang),
           ...(isInt(a.sets, 1, 10) ? { sets: a.sets } : {}),
           ...(isInt(a.reps, 1, 100) ? { reps: a.reps } : {}),
           ...(isNum(a.weight) && a.weight > 0 && a.weight <= MAX_WEIGHT ? { weight: a.weight } : {})
@@ -476,7 +485,7 @@ export function validateReview(data, plan, ctx = {}) {
           name: clampStr(a.name, 40), emoji: glyphStr(a.emoji),
           ...(POLICIES.includes(a.prog) ? { prog: a.prog } : {}),
           ex: ex.map(e => ({
-            id: e.id, name: libraryName(e.id),
+            id: e.id, name: libraryName(e.id, ctx.lang),
             sets: isInt(e.sets, 1, 10) ? e.sets : 3,
             mode: MODES.includes(e.mode) ? e.mode : 'reps',
             ...(isInt(e.reps, 1, 100) ? { reps: e.reps } : {}),
@@ -570,6 +579,17 @@ export function validateReview(data, plan, ctx = {}) {
     }
     changes.push(out);
   });
+
+  if (mismatchKeys.size) {
+    const handled = new Set(changes
+      .filter(c => c.type === 'remove-exercise' || c.type === 'swap-exercise')
+      .map(c => `${c.target.routineId}::${c.target.exId}`));
+    const missing = equipmentMismatches.filter(x => !handled.has(mismatchKey(x)));
+    if (missing.length) {
+      errors.push('every equipment mismatch must be handled with remove-exercise or swap-exercise: '
+        + missing.map(x => `${x.routineId}/${x.exId}`).join(', '));
+    }
+  }
 
   const namesOf = ch => {
     const a = ch.after && typeof ch.after === 'object' && !Array.isArray(ch.after) ? ch.after : {};
@@ -815,7 +835,7 @@ export function validateAdapt(data, today, ctx = {}) {
       if (!openWork(en).length) { errors.push(`${where} changes today.entries[${c.entry}], whose sets are all logged — logged sets are never changed`); return; }
       if (touched.has(c.entry)) { errors.push(`${where} is a second change to today.entries[${c.entry}] — one change per exercise`); return; }
       touched.add(c.entry);
-      out.entry = c.entry; out.exId = en.id; out.name = libraryName(en.id);
+      out.entry = c.entry; out.exId = en.id; out.name = libraryName(en.id, ctx.lang);
     }
     // Flat fields rather than one `after` of many shapes: a provider that enforces a strict
     // schema (every object closed) can still write each of them (#804).
@@ -826,7 +846,7 @@ export function validateAdapt(data, today, ctx = {}) {
         if (c.to === en.id) { errors.push(`${where} swaps an exercise for itself`); return; }
         if (inSession.has(c.to)) { errors.push(`${where}.to "${c.to}" is already in today's session — pick another`); return; }
         if (offEquipment(ctx, c.to)) { errors.push(OFF_EQUIPMENT(`${where}.to`, c.to)); return; }
-        out.to = c.to; out.toName = libraryName(c.to);
+        out.to = c.to; out.toName = libraryName(c.to, ctx.lang);
         if (isInt(c.reps, 1, 100)) out.reps = c.reps;
         if (isNum(c.weight) && c.weight >= 0 && c.weight <= MAX_WEIGHT) out.weight = c.weight;
         inSession.add(c.to);
@@ -856,7 +876,7 @@ export function validateAdapt(data, today, ctx = {}) {
         if (inSession.has(c.to)) { errors.push(`${where}.to "${c.to}" is already in today's session`); return; }
         if (offEquipment(ctx, c.to)) { errors.push(OFF_EQUIPMENT(`${where}.to`, c.to)); return; }
         if (c.entry != null && !isInt(c.entry, 0, entries.length - 1)) { errors.push(`${where}.entry, when given, is the index of the exercise the new one follows`); return; }
-        out.to = c.to; out.toName = libraryName(c.to);
+        out.to = c.to; out.toName = libraryName(c.to, ctx.lang);
         out.sets = isInt(c.sets, 1, 6) ? c.sets : 3;
         if (isInt(c.sec, 5, 600)) out.sec = c.sec; else out.reps = isInt(c.reps, 1, 50) ? c.reps : 10;
         if (isNum(c.weight) && c.weight > 0 && c.weight <= MAX_WEIGHT) out.weight = c.weight;

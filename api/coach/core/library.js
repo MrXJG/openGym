@@ -6,6 +6,8 @@
  * needs an import attribute, and this file has to load under both without either knowing.
  */
 import { EXERCISES, TIER_STARTS } from './library-data.js';
+import { exerciseName } from './exercise-names.js';
+import { specificEquipmentAllows, profileEquipmentCategories, profileHasSpecificEquipment, missingSpecificEquipment } from './specific-equipment.js';
 
 export const LIBRARY = EXERCISES;
 export const LIB_BY_ID = new Map(LIBRARY.map(e => [e.id, e]));
@@ -14,19 +16,48 @@ export const LIB_BY_ID = new Map(LIBRARY.map(e => [e.id, e]));
 const TIER_OF = new Map(LIBRARY.map((e, i) => [e.id, i < (TIER_STARTS?.[0] ?? Infinity) ? 0 : i < (TIER_STARTS?.[1] ?? Infinity) ? 1 : 2]));
 
 export const libraryHas = id => LIB_BY_ID.has(id);
-export const libraryName = id => LIB_BY_ID.get(id)?.n || null;
+export const libraryName = (id, lang = 'en') => exerciseName(id, lang);
 
 /* Whether the person's equipment covers a catalogue exercise. Body weight is never gated, the
    same rule the app's own equipment profiles follow (frontend lib/equipment.js), and an id the
    catalogue does not hold (one of their own exercises) is theirs to judge, not ours. No
    equipment stated means the whole catalogue. */
 const ALWAYS_AVAILABLE = 'body weight';
-export function equipmentAllows(equipment, id) {
+const EQUIPMENT_ALIASES = {
+  barbell: ['olympic barbell'],
+  'olympic barbell': ['barbell']
+};
+const SELF_CONTAINED = new Set(['leverage machine', 'sled machine', 'assisted']);
+const accessoriesOf = exercise => {
+  if (!exercise || SELF_CONTAINED.has(exercise.eq)) return [];
+  const name = String(exercise.n || '').toLowerCase();
+  const required = [];
+  if (/\bbench\b|\bincline\b|\bdecline\b/.test(name)) required.push('bench');
+  if (/pull-up|pull up|chin-up|\bchin\b|hanging|muscle-up|muscle up/.test(name)) required.push('pull-up bar');
+  for (const accessory of Array.isArray(exercise?.nd) ? exercise.nd : []) if (!required.includes(accessory)) required.push(accessory);
+  return required;
+};
+export function equipmentAllows(equipment, id, { specified = (equipment || []).length > 0, accessories = true } = {}) {
   const wanted = (equipment || []).map(x => String(x).toLowerCase());
-  if (!wanted.length) return true;
-  const eq = (LIB_BY_ID.get(id)?.eq || '').toLowerCase();
-  return !eq || eq === ALWAYS_AVAILABLE || wanted.includes(eq);
+  if (!specified) return true;
+  const exercise = LIB_BY_ID.get(id);
+  const eq = (exercise?.eq || '').toLowerCase();
+  if (eq && eq !== ALWAYS_AVAILABLE && !wanted.includes(eq)
+    && !(EQUIPMENT_ALIASES[eq] || []).some(alias => wanted.includes(alias))) return false;
+  return !accessories || accessoriesOf(exercise).every(accessory => wanted.includes(accessory));
 }
+
+export function equipmentAllowsProfile(profile, id) {
+  const categories = profileEquipmentCategories(profile);
+  const specified = categories.length > 0 || (Array.isArray(profile?.equipmentItems) && profile.equipmentItems.length > 0);
+  if (!specified) return true;
+  if (!equipmentAllows(categories, id, { specified: true })) return false;
+  if (!profileHasSpecificEquipment(profile)) return true;
+  return specificEquipmentAllows(profile.equipmentItems, LIB_BY_ID.get(id), categories);
+}
+
+export { missingSpecificEquipment, profileEquipmentCategories, profileHasSpecificEquipment, specificEquipmentAllows };
+
 
 /* "I own no dumbbells", the app's switch under Settings → Equipment → Dumbbells (frontend
    lib/dumbbells.js ownsNoDumbbells): kept in the synced dumbbell map under `none`. It holds
@@ -45,7 +76,7 @@ export const MAX_LIBRARY = 160;
 
 // What one library entry tells the model: enough to pick it, nothing more. The taxonomy
 // fields beyond body part never appear in a rationale and cost ~30 tokens an entry.
-const slim = e => ({ id: e.id, n: e.n, bp: e.bp, ...(e.custom ? { custom: true } : {}) });
+const slim = (e, lang = 'en') => ({ id: e.id, n: e.custom ? e.n : libraryName(e.id, lang), bp: e.bp, ...(e.custom ? { custom: true } : {}) });
 
 /* Mobility work is not what a plan is built from, and at an even share per body part the
    catalogue's 57 stretches crowded out the lifts that are: a first plan for someone who
@@ -152,7 +183,7 @@ function laneOrder(entries, muscles) {
    slots stay for exercises outside `keep` however much the plan and history pin, so a review has
    something to swap in (#829). It can take the slice past `max`, never past MAX_LIBRARY unless
    `keep` alone does. */
-export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY, focus = [], fresh = 0 } = {}) {
+export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY, focus = [], fresh = 0, equipmentSpecified = !!equipment?.length, equipmentItems = [], lang = 'en' } = {}) {
   const wanted = (equipment || []).map(x => String(x).toLowerCase());
   // A custom exercise's name and body part are whatever the person typed, and its id is
   // whatever the client wrote; all three ride into every prompt. Cut to the bounds payload.js
@@ -165,9 +196,9 @@ export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY, focus
   // leave the Coach unable to propose anything at all, which is a worse failure than a
   // slightly larger payload.
   const noDumbbells = ownsNoDumbbells(S);
-  const filtered = (wanted.length ? LIBRARY.filter(e => equipmentAllows(wanted, e.id)) : LIBRARY)
-    .filter(e => !noDumbbells || !isDumbbellLift(e.id));
-  const equipped = filtered.length ? filtered : LIBRARY;
+  const filtered = (equipmentSpecified ? LIBRARY.filter(e => equipmentAllows(wanted, e.id, { specified: true })) : LIBRARY)
+    .filter(e => (!noDumbbells || !isDumbbellLift(e.id)) && (!equipmentItems.length || specificEquipmentAllows(equipmentItems, e, wanted)));
+  const equipped = filtered.length || equipmentSpecified || noDumbbells ? filtered : LIBRARY;
   // Same reasoning as the equipment fallback: a filter that removed everything is not a filter
   // worth honouring. Someone whose only kit reaches nothing but stretches gets the stretches.
   const lifts = equipped.filter(e => !isStretch(e));
@@ -210,7 +241,7 @@ export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY, focus
       }
     }
   }
-  return [...customs, ...out].map(slim);
+  return [...customs, ...out].map(e => slim(e, lang));
 }
 
 /* ---------- candidates for a swap in the middle of a workout (the `adapt` job) ----------
@@ -219,11 +250,11 @@ export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY, focus
    part, each walked in the deterministic stride above and across every kind of equipment the
    person has, then the exercises already in the session (`keep`, so a change can name them).
    Small on purpose: a swap picks one of a few dozen, and the answer has to arrive mid-set. */
-export function swapSlice(S, equipment, exId, { keep = [], max = 36 } = {}) {
+export function swapSlice(S, equipment, exId, { keep = [], max = 36, equipmentSpecified = !!equipment?.length, equipmentItems = [], lang = 'en' } = {}) {
   const focus = LIB_BY_ID.get(exId);
   const wanted = (equipment || []).map(x => String(x).toLowerCase());
   const noDumbbells = ownsNoDumbbells(S);
-  const fits = e => equipmentAllows(wanted, e.id) && !(noDumbbells && isDumbbellLift(e.id)) && !isStretch(e) && e.id !== exId;
+  const fits = e => equipmentAllows(wanted, e.id, { specified: equipmentSpecified }) && (!equipmentItems.length || specificEquipmentAllows(equipmentItems, e, wanted)) && !(noDumbbells && isDumbbellLift(e.id)) && !isStretch(e) && e.id !== exId;
   const out = [];
   const taken = new Set();
   const add = e => { if (e && !taken.has(e.id) && out.length < max) { taken.add(e.id); out.push(e); } };
@@ -244,5 +275,5 @@ export function swapSlice(S, equipment, exId, { keep = [], max = 36 } = {}) {
     .filter(c => c && typeof c === 'object' && typeof c.id === 'string' && c.id)
     .slice(0, 10)
     .map(c => ({ id: c.id.slice(0, 64), n: typeof c.n === 'string' ? c.n.slice(0, 80) : undefined, bp: typeof c.bp === 'string' ? c.bp.slice(0, 40) : undefined, custom: true }));
-  return [...customs, ...out.map(slim)];
+  return [...customs, ...out.map(e => slim(e, lang))];
 }

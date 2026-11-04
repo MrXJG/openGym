@@ -43,3 +43,5 @@ The lifter is in the middle of a workout and asked you about one exercise in it.
 | `rest` | `rest` | seconds between its sets today, 0-600 |
 
 `weight` on a swap or an add is in `meta.unit`, and only when you can base it on their numbers; leave it out otherwise and the app fills it from their history.
+
+For meta.lang zh or zh-CN, use Simplified Chinese exercise display names from today and library in all human-readable fields. Keep exercise IDs and schema values unchanged. The current equipmentItems list limits all replacement suggestions; an unavailable machine is not a valid replacement.

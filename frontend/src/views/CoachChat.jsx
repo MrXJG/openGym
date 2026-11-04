@@ -12,6 +12,7 @@
 // proposal — every change, accepted or not, the notes, the evidence — is kept, so saying yes
 // or no never makes it disappear. Turning the Coach off is the admin's decision, not a control
 // on this screen.
+import { routeCoachMessage } from '../../../api/coach/core/router.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { closeThenNav } from '../lib/nav.js'
@@ -135,6 +136,7 @@ export default function CoachChat() {
       // is a question, answered in words (`ask`): "how long should I rest?" is not a request to
       // review the whole plan. A review is the chip and the menu's, as it always was.
       if (pending?.kind === 'create' || !(S.routines || []).length) await refinePlan(msg)
+      else if (routeCoachMessage(msg, { hasPlan: true }) === 'review') await requestReview(msg)
       else await askCoach(msg)
       update(s => appendChat(s, { role: 'user', kind: 'text', text: msg }))
       setText('')
@@ -423,7 +425,12 @@ function ReviewCard({ p, S, update, toast, refresh }) {
     try {
       update(s => {
         const res = applyChangeSet(s, marked, ids)
-        appendChat(s, { role: 'coach', kind: 'applied', ref: res.logId, text: tn('Applied {0} change to your plan.', 'Applied {0} changes to your plan.', ids.length) })
+        const details = (res.decisions || []).map(c => {
+          const days = Object.entries(s.week || {}).filter(([, rids]) => [].concat(rids).includes(c.target?.routineId)).map(([day]) => t(DAYS[Number(day)]))
+          const place = [...days, c.routineName].filter(Boolean).join(' · ')
+          return [place, changeTitle(c, s), c.why].filter(Boolean).join('：')
+        }).join('\n')
+        appendChat(s, { role: 'coach', kind: 'applied', ref: res.logId, text: tn('Applied {0} change to your plan.', 'Applied {0} changes to your plan.', res.applied) + (details ? '\n' + details : '') })
       })
       resolvePending({ accepted: ids, rejected: marked.changes.filter(c => !ids.includes(c.id)).map(c => c.id) }).catch(() => {})
       toast(tn('{0} change applied', '{0} changes applied', ids.length))

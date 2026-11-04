@@ -307,8 +307,8 @@ test('an admin can raise the Coach message length past the old 1000-char default
   assert.equal(cfg.load().maxMessageLen, 2500, 'persists with the rest of the Coach config');
 
   // Clamped, not trusted outright — the admin route validates the same way `caps` does above.
-  await call('POST /api/admin/coach/config', { maxMessageLen: 999999 });
-  assert.equal((await call('GET /api/admin/coach')).body.maxMessageLen, 4000, 'ceiling');
+  await call('POST /api/admin/coach/config', { maxMessageLen: 999999999 });
+  assert.equal((await call('GET /api/admin/coach')).body.maxMessageLen, cfg.MAX_MESSAGE_LEN_CEILING, 'ceiling');
   await call('POST /api/admin/coach/config', { maxMessageLen: 1 });
   assert.equal((await call('GET /api/admin/coach')).body.maxMessageLen, 200, 'floor');
 
@@ -352,8 +352,8 @@ test('an admin can raise the Coach output cap for a reasoning model, clamped to 
   assert.equal(cfg.load().maxOutputTokens, 48000, 'persists with the rest of the Coach config');
 
   // Clamped, not trusted outright — a reasoning model needs more than 16000, but not a million.
-  await call('POST /api/admin/coach/config', { maxOutputTokens: 999999 });
-  assert.equal((await call('GET /api/admin/coach')).body.maxOutputTokens, 65536, 'ceiling');
+  await call('POST /api/admin/coach/config', { maxOutputTokens: 9999999 });
+  assert.equal((await call('GET /api/admin/coach')).body.maxOutputTokens, cfg.MAX_OUTPUT_TOKENS_CEILING, 'ceiling');
   await call('POST /api/admin/coach/config', { maxOutputTokens: 1 });
   assert.equal((await call('GET /api/admin/coach')).body.maxOutputTokens, 1024, 'floor');
 });

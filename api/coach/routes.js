@@ -129,6 +129,23 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       } catch (e) { failEnqueue(res, e); }
     },
 
+    // Compatibility for pre-1.4.4 customized clients; both URLs use the upstream ask contract.
+    'POST /api/coach/chat': async (req, res) => {
+      const user = guard(req, res); if (!user) return;
+      const body = await readBody(req);
+      const text = typeof body.note === 'string' ? body.note.trim() : typeof body.text === 'string' ? body.text.trim() : '';
+      if (!text) return json(res, 400, { error: 'a question is required', code: 'invalid' });
+      try {
+        const job = jobs.enqueue(user.id, {
+          kind: 'ask',
+          lang: body.lang,
+          note: text.slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING),
+          today: body.today && typeof body.today === 'object' && !Array.isArray(body.today) ? body.today : null
+        });
+        json(res, 202, { job });
+      } catch (e) { failEnqueue(res, e); }
+    },
+
     // "Ask the Coach" on an exercise mid-workout (the `adapt` job): up to six changes to the
     // unfinished part of the session, ticked on the phone and applied there. The running session
     // rides along, as with a question; the server never holds it.

@@ -1,6 +1,8 @@
 import { t } from './i18n-core.js'
 import { EXDB } from './exercises-data.js'
 import { ownsNoDumbbells } from './dumbbells.js'
+import { SPECIFIC_EQUIPMENT, categoriesForSpecificEquipment, profileEquipmentCategories, profileHasSpecificEquipment, specificEquipmentAllows } from '../../../api/coach/core/specific-equipment.js'
+export { SPECIFIC_EQUIPMENT, categoriesForSpecificEquipment, profileHasSpecificEquipment }
 
 // Pieces of kit the catalogue never names as an exercise's equipment — "dumbbell bench press" is
 // tagged `dumbbell`, yet it needs a bench; "chin-up" is tagged `body weight`, yet it needs a bar.
@@ -61,7 +63,7 @@ export function exAvailable(S, ex) {
   const p = activeProfile(S)
   if (!p) return true
   if (ownsNoDumbbells(S) && ex.eq === 'dumbbell') return false
-  return eqAvailable(profileEquipment(p), ex)
+  return eqAvailable(profileEquipment(p), ex) && (!profileHasSpecificEquipment(p) || specificEquipmentAllows(p.equipmentItems, ex, profileEquipment(p)))
 }
 
 // A profile saved before the bench and the bar were on the checklist (#464) never had the chance
@@ -71,7 +73,7 @@ export function exAvailable(S, ex) {
 // ball exercises it always showed, again until it is saved.
 export const ACC_V = 2
 export function profileEquipment(p) {
-  const have = p?.equipment || []
+  const have = profileEquipmentCategories(p)
   if (!p || p.accV === ACC_V) return have
   const add = (p.accV || 0) < 1 ? [...ACCESSORIES] : []
   if (have.includes('roller')) add.push('massage ball')
@@ -85,7 +87,7 @@ export function eqAvailable(equipment, ex) {
     // Equipment no profile can tick (an imported exercise's "custom") would hide the user's own
     // exercise under every profile, with no way to bring it back. It stays, like body weight.
     if (!ALL_EQUIPMENT.includes(ex.eq)) return true
-    if (!have.includes(ex.eq)) return false
+    if (!have.includes(ex.eq) && !((ex.eq === 'barbell' || ex.eq === 'olympic barbell') && (have.includes('barbell') || have.includes('olympic barbell')))) return false
   }
   return accessoriesOf(ex).every(a => have.includes(a))
 }

@@ -101,9 +101,9 @@ const DEFAULTS = {
   log: []
 };
 export const MAX_MESSAGE_LEN_FLOOR = 200;
-export const MAX_MESSAGE_LEN_CEILING = 4000;
+export const MAX_MESSAGE_LEN_CEILING = 131072;
 export const MAX_OUTPUT_TOKENS_FLOOR = 1024;
-export const MAX_OUTPUT_TOKENS_CEILING = 65536;
+export const MAX_OUTPUT_TOKENS_CEILING = 262144;
 const PER_PROVIDER = ['auth', 'models', 'providerOptions', 'boundUid'];
 const isPlainObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const LOG_MAX = 100;

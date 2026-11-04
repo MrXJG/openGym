@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { equipmentAllows, specificEquipmentAllows, LIB_BY_ID } from './core/library.js';
 /* The fake provider: a CLI that speaks the Coach contract without an AI account.
  *
  * Two jobs. In CI it is the whole test surface — every job outcome (a valid plan, a valid
@@ -70,7 +71,7 @@ if (MODE === 'nochange' || (kind === 'review' && !(P.window?.workouts || []).len
 }
 
 if (kind === 'create') {
-  const lib = (P.library || []).slice(0, 6);
+  const lib = (P.library || []).filter(e => equipmentAllows(P.equipment, e.id, { specified: P.equipmentSpecified, accessories: !!P.equipmentItems?.length }) && (!P.equipmentItems?.length || specificEquipmentAllows(P.equipmentItems, LIB_BY_ID.get(e.id), P.equipment))).slice(0, 6);
   const ex = (i) => lib[i % Math.max(1, lib.length)] || { id: 'unknown' };
   out({
     coach_contract: 1,

@@ -24,9 +24,9 @@ const DEFAULTS = { mode: 'off', provider: null, model: null, baseUrl: null, hand
    three defaults are what the phone already did before the dials existed. `daily` 0 means no
    limit, exactly as the instance cap does. */
 export const COACH_LIMITS = {
-  maxOutputTokens: { def: 16000, min: 1024, max: 65536 },
+  maxOutputTokens: { def: 16000, min: 1024, max: 262144 },
   daily: { def: 10, min: 0, max: 200 },
-  maxMessageLen: { def: 1000, min: 200, max: 4000 }
+  maxMessageLen: { def: 1000, min: 200, max: 131072 }
 }
 export const clampCoachLimit = (key, value) => {
   const c = COACH_LIMITS[key]

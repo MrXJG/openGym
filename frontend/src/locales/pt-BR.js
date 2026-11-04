@@ -4,6 +4,10 @@
 import pt from './pt.js'
 
 export const PT_BR_OVERRIDES = {
+  'When you ask for a plan or a review, this phone sends the following straight to {0}, using your own API key. You pay for every request.': 'Quando você pede um plano ou uma revisão, este celular envia o seguinte diretamente para {0}, usando sua própria chave de API. Você paga por cada solicitação.',
+  'No progress photos yet. The button above adds one to today, once today has a logged workout.': 'Ainda não há fotos de progresso. O botão acima adiciona uma foto a hoje quando houver um treino registrado.',
+  'The app can only pair with an https:// address. Your phone blocks plain http:// before anything is even sent.': 'O app só pode parear com um endereço https://. Seu celular bloqueia http:// simples antes de qualquer envio.',
+  'e.g. “swap the squats for split squats, and Mondays are short”': 'ex.: “troque os agachamentos por agachamentos divididos, e segundas são curtas”',
   'The search finds it by these too. Separate them with commas.': 'A busca também encontra o exercício por estes. Separe com vírgulas.',
   'Save names': 'Salvar nomes',
   'Handy when you compare with another app. Records ignore warm-ups either way.': 'Ajuda quando você compara com outro app. Os recordes ignoram o aquecimento de qualquer jeito.',

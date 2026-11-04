@@ -287,9 +287,9 @@ test('a note/refine is capped at MAX_NOTE_CHARS, not the old 1000-char literal (
   // without going through that path (coach-local.js's in-process pipeline). It has to be at
   // least as generous as the admin's ceiling (coach/config.js clamps maxMessageLen to 4000), or
   // an admin who raised the limit would still see every note clipped back down here.
-  assert.equal(payload.MAX_NOTE_CHARS, 4000);
+  assert.equal(payload.MAX_NOTE_CHARS, 131072);
   const S = sampleState();
-  const long = 'n'.repeat(5000);
+  const long = 'n'.repeat(140000);
   const review = payload.build(S, { handle: handleFor('u1'), kind: 'review', note: long });
   assert.equal(review.userNote.length, payload.MAX_NOTE_CHARS);
   const create = payload.build(S, { handle: handleFor('u1'), kind: 'create', refine: long });
@@ -417,14 +417,14 @@ test('the app\'s active equipment profile stands in when the Coach was told no e
   S.activeEquipId = 'home';
   S.equipFilterOn = true;
   const p = payload.build(S, { handle: handleFor('u1'), kind: 'create' });
-  assert.deepEqual(p.coachProfile.equipment, ['dumbbell', 'cable']);
+  assert.deepEqual(p.coachProfile.equipment, ['dumbbell', 'cable', 'bench', 'pull-up bar']);
   const trained = new Set((S.workouts || []).flatMap(w => (w.entries || []).map(en => en.id)));
   assert.ok(!p.library.some(e => eqOf(e.id) === 'leverage machine' && !trained.has(e.id)), 'no leverage machine offered');
   // Filtering switched off in the app: the Coach goes back to the whole catalogue.
   S.equipFilterOn = false;
   assert.deepEqual(payload.build(S, { handle: handleFor('u1'), kind: 'create' }).coachProfile.equipment, []);
-  // Equipment answered in the Coach's own questions wins over the app's profile.
+  // The current Settings profile wins over older Coach intake equipment.
   S.equipFilterOn = true;
   S.coach.profile.equipment = ['barbell'];
-  assert.deepEqual(payload.build(S, { handle: handleFor('u1'), kind: 'create' }).coachProfile.equipment, ['barbell']);
+  assert.deepEqual(payload.build(S, { handle: handleFor('u1'), kind: 'create' }).coachProfile.equipment, ['dumbbell', 'cable', 'bench', 'pull-up bar']);
 });

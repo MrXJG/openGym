@@ -3,7 +3,7 @@ import { useStore } from './store/useStore.js'
 import { exView, exUnitPin, exUnitOf, exUnitTag, withExUnit, profileUnit, viewTarget, storedTarget, storedBar, viewEntry, viewRow, shownWeight } from './lib/ex-unit.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, byCategory, smOf, searchExercises, similarExercises, exOr, isAssisted, betterWeight, beatsWeight, isCustomEx } from './lib/exercises.js'
-import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile, profileEquipment, ACC_V } from './lib/equipment.js'
+import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile, profileEquipment, ACC_V, SPECIFIC_EQUIPMENT, categoriesForSpecificEquipment } from './lib/equipment.js'
 import { activeGym, gymsOf, gymLabel, copyInventory, gymHasStack } from './lib/gym-inventory.js'
 import { autoGymHere } from './lib/gym-auto.js'
 import { fmtDate, fmtDateRange, fmtNum, fmtPlate, exerciseNameText, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, routineCount, setsWorkCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
@@ -1979,18 +1979,20 @@ function EquipmentProfileSheet({ profile, close }) {
   const update = useStore(s => s.update)
   const nameRef = useRef(null)
   const [checked, setChecked] = useState(new Set(profile ? profileEquipment(profile) : []))
+  const [items, setItems] = useState(new Set((profile?.equipmentItems || []).map(item => typeof item === 'object' ? item.id : item)))
+  const toggleItem = id => setItems(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
   const toggle = k => setChecked(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
   const save = () => {
     const name = (nameRef.current.value || '').trim()
     if (!name) { return }
     update(s => {
       s.equipProfiles = s.equipProfiles || []
-      const equipment = [...checked]
+      const equipment = [...new Set([...checked, ...categoriesForSpecificEquipment([...items])])]
       if (profile) {
         const p = s.equipProfiles.find(x => x.id === profile.id)
-        if (p) { p.name = name; p.equipment = equipment; p.accV = ACC_V }
+        if (p) { p.name = name; p.equipment = equipment; p.equipmentItems = [...items]; p.accV = ACC_V }
       } else {
-        const p = newProfile(name); p.equipment = equipment
+        const p = newProfile(name); p.equipment = equipment; p.equipmentItems = [...items]
         s.equipProfiles.push(p)
         if (!s.activeEquipId) s.activeEquipId = p.id
       }
@@ -2004,6 +2006,10 @@ function EquipmentProfileSheet({ profile, close }) {
     </div>
     <TextField ref={nameRef} defaultValue={profile?.name || ''} placeholder={t('Profile name')} maxLength={40} />
     <div style={{ height: 12 }} />
+    <div className="muted small" style={{ marginBottom: 8 }}>{t('Specific equipment')}</div>
+    <div className="chips">{SPECIFIC_EQUIPMENT.map(item => <button key={item.id} className={'chip' + (items.has(item.id) ? ' on' : '')} onClick={() => toggleItem(item.id)}>{t(item.labelKey)}</button>)}</div>
+    <div className="dim small" style={{ margin: '8px 0 14px' }}>{t('Choose the exact equipment available here. The Coach uses this list when checking your plan.')}</div>
+    <div className="muted small" style={{ marginBottom: 8 }}>{t('Equipment categories')}</div>
     <div className="chips">
       {ALL_EQUIPMENT.map(k => (
         <button key={k} className={'chip' + (checked.has(k) ? ' on' : '')} onClick={() => toggle(k)}>{t(k)}</button>

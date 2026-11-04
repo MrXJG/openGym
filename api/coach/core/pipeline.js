@@ -17,6 +17,59 @@ import { extractJSON, contractOK } from './parse.js';
 import { validatePlan, validateReview, validateDebrief, validateAsk, validateAdapt } from './validate.js';
 import { isChangeList, changesOntoPlan } from './refine-changes.js';
 
+const WEEKDAYS_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const AUDIT_BATCH_SIZE = 25;
+
+function equipmentAudit(payload) {
+  if (!payload?.equipmentSpecified && !payload?.noDumbbells) {
+    return {
+      ok: true,
+      nochange: true,
+      reading: '我还没有可用的器材清单，不能判断计划里的器械动作是否能做。请先在设置页启用并填写器材配置，再让我核对；我不会在清单缺失时假定器材齐全。'
+    };
+  }
+  const mismatches = Array.isArray(payload?.equipmentMismatches) ? payload.equipmentMismatches : [];
+  if (!mismatches.length) {
+    return {
+      ok: true,
+      nochange: true,
+      reading: '我已按设置中的当前器材清单核对训练计划；现有动作都能使用，没有需要删除的动作。'
+    };
+  }
+  const batch = mismatches.slice(0, AUDIT_BATCH_SIZE);
+  const changes = batch.map((m, i) => {
+    const days = (m.weekdays || []).map(day => WEEKDAYS_ZH[day]).filter(Boolean);
+    const where = days.length ? `${days.join('、')}（${m.routineName || m.routineId}）` : (m.routineName || m.routineId);
+    return {
+      id: `equipment-${i + 1}`,
+      type: 'remove-exercise',
+      target: { routineId: m.routineId, exId: m.exId },
+      after: null,
+      why: `${where}的${m.name || '该动作'}需要器材清单中未配置的器械${m.missingEquipment?.length ? `（缺少：${m.missingEquipment.join('、')}）` : ''}。按你的要求，建议从计划中删除；其他动作保持不变。`
+    };
+  });
+  const answer = {
+    coach_contract: CONTRACT,
+    summary: `我按当前器材清单核对了计划，发现 ${changes.length} 个无法使用的动作，已列出删除建议；其他动作保持不变。确认后才会应用。`,
+    changes
+  };
+  const remaining = mismatches.length - batch.length;
+  if (remaining) answer.summary += ` 这次先列出 ${batch.length} 项，仍有 ${remaining} 项待下一次核对。`;
+  const checked = validateReview(answer, payload.plan, {
+    equipmentMismatches: batch,
+    equipment: payload.equipment || payload.coachProfile?.equipment || [],
+    equipmentItems: payload.equipmentItems || [],
+    lang: payload.meta?.lang,
+    equipmentSpecified: payload.equipmentSpecified,
+    offered: new Set((payload.library || []).map(e => e && e.id)),
+    customIds: (payload.library || []).filter(e => e?.custom).map(e => e.id)
+  });
+  if (!checked.ok) return { ok: false, errorClass: 'unusable', repairable: false, errors: checked.errors };
+  return checked.nochange
+    ? { ok: true, nochange: true, reading: checked.reading }
+    : { ok: true, result: checked.proposal };
+}
+
 /**
  * One attempt: prompt → provider → parse → validate.
  *
@@ -74,15 +127,15 @@ export async function attemptOnce({ adapter, cfg, kind, payload, model, timeoutM
     ? changesOntoPlan(payload.refine?.previous, parsed.value) || parsed.value
     : parsed.value;
   const checked = kind === 'review'
-    ? validateReview(parsed.value, payload.plan, { customIds, equipment, offered, noDumbbells })
+    ? validateReview(parsed.value, payload.plan, { customIds, equipment, offered, noDumbbells, equipmentItems: payload.equipmentItems || [], equipmentSpecified: payload.equipmentSpecified, lang: payload.meta?.lang })
     : kind === 'debrief'
       ? validateDebrief(parsed.value)
       : kind === 'ask'
       ? validateAsk(parsed.value)
       : kind === 'adapt'
-      ? validateAdapt(parsed.value, payload.today, { customIds, equipment, offered, noDumbbells })
+      ? validateAdapt(parsed.value, payload.today, { customIds, equipment, offered, noDumbbells, equipmentItems: payload.equipmentItems || [], equipmentSpecified: payload.equipmentSpecified, lang: payload.meta?.lang })
       : validatePlan(answer, {
-      customIds, equipment, offered, noDumbbells,
+      customIds, equipment, offered, noDumbbells, equipmentItems: payload.equipmentItems || [], equipmentSpecified: payload.equipmentSpecified, lang: payload.meta?.lang,
       workingWeights: payload.history?.workingWeights,
       daysPerWeek: payload.coachProfile?.daysPerWeek
     });
@@ -94,6 +147,7 @@ export async function attemptOnce({ adapter, cfg, kind, payload, model, timeoutM
 
 /** The whole loop: one attempt, then one repair round if the answer was fixable (FR-48). */
 export async function runPipeline(opts) {
+  if (opts.kind === 'review' && opts.payload?.equipmentAudit) return equipmentAudit(opts.payload);
   let attempt = await attemptOnce(opts, null);
   if (!attempt.ok && attempt.repairable) {
     // One repair round, then done. Two failures is a provider problem, not a prompting

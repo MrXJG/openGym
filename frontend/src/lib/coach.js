@@ -1,3 +1,4 @@
+import { exerciseNameFor } from './i18n-core.js'
 // The AI Coach, on the client side: everything that decides what a proposal *does* to a plan.
 //
 // The server produces proposals; it never writes into your state. Applying one is ordinary
@@ -659,7 +660,7 @@ export function applyChangeSet(s, proposal, acceptedIds) {
     notes: proposal.notes || [], decisions: [...applied, ...rejected]
   })
   coachOf(s).lastReview = { at: Date.now() }
-  return { applied: applied.length, rejected: rejected.length, logId }
+  return { applied: applied.length, rejected: rejected.length, logId, decisions: applied }
 }
 
 /** Turned down whole, or expired: recorded so a later review knows not to re-propose it. */
@@ -687,7 +688,7 @@ export function recordDebrief(s, proposal) {
 
 /* ============================ display helpers ============================ */
 
-export const exName = id => EXIDX[id]?.n || t('Unknown exercise')
+export const exName = id => EXIDX[id] ? exerciseNameFor(EXIDX[id]) : t('Unknown exercise')
 // Catalogue names are lower-case; a title reads better with each word capitalised, and doing it
 // here rather than with CSS keeps a German sentence around the name from being Title Cased too.
 const cap = s => String(s || '').replace(/(^|\s)(\p{L})/gu, (m, sp, ch) => sp + ch.toUpperCase())

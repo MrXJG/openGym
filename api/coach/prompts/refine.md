@@ -1,5 +1,7 @@
 # Task: revise the plan you just proposed
 
+When `meta.lang` is `zh` or `zh-CN`, keep all routine names, weekdays, summaries, reasons, and exercise names in Simplified Chinese. Preserve the original exercise IDs exactly; translated names are display text only.
+
 `refine.previous` is the plan you produced and they have not accepted yet. `refine.text` is what this person said about it, in their own words. `plan` is what they train today: context for what they meant, not the thing you are editing.
 
 Apply what they asked for and return the **complete revised plan** in the output format of the plan task above (`coach_contract`, `opengym_plan`, `name`, `summary`, `basedOn`, `week`, `routines`, `customEx`) — not a diff, not a fragment. **Never answer with a list of `changes`**: that is the review format, and this screen cannot apply it. Start from `refine.previous`, change what they asked about, and send every routine and the whole week back. Everything they did not question stays as it was: a revision that quietly reshuffles the rest is one they cannot check.
