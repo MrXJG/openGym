@@ -104,6 +104,13 @@ describe('a typed message', () => {
     expect(askCoach).toHaveBeenCalledWith('Quanto recupero tra le serie?')
     expect(requestReview).not.toHaveBeenCalled()
   })
+
+  it('routes an explicit plan change to a review proposal', async () => {
+    mount()
+    await send('帮我换掉这个动作')
+    expect(requestReview).toHaveBeenCalledWith('帮我换掉这个动作')
+    expect(askCoach).not.toHaveBeenCalled()
+  })
 })
 
 describe('a request the server refuses', () => {

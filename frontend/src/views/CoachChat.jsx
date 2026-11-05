@@ -35,6 +35,7 @@ import { insightsFor, sessionInsights } from '../lib/coach-insights.js'
 import { useCoachStatus, requestReview, requestDebrief, requestPlan, refinePlan, askCoach, resolvePending, cohortStats, setCohortShare, jobErrorText, awaitedJob, settleAwaited, JOB_ERRORS, ensureAiConsent, isDeclined } from '../lib/coach-api.js'
 import { AiConsentSection } from '../components/CoachConsentSheet.jsx'
 import { useCoachGate } from '../lib/use-coach-gate.js'
+import { needsCoachReview } from '../lib/coach-route.js'
 import { confirmSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
@@ -133,8 +134,10 @@ export default function CoachChat() {
       // failed, or nothing was ever built — the message asks for one; a review would only
       // answer that there is no workout to look at, which is how people got stuck. Anything else
       // is a question, answered in words (`ask`): "how long should I rest?" is not a request to
-      // review the whole plan. A review is the chip and the menu's, as it always was.
+      // review the whole plan. Explicit plan changes need a review proposal so they can be
+      // inspected and confirmed instead of receiving an answer that cannot change the plan.
       if (pending?.kind === 'create' || !(S.routines || []).length) await refinePlan(msg)
+      else if (needsCoachReview(msg)) await requestReview(msg)
       else await askCoach(msg)
       update(s => appendChat(s, { role: 'user', kind: 'text', text: msg }))
       setText('')
