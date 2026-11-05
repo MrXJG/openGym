@@ -111,6 +111,20 @@ describe('a typed message', () => {
     expect(requestReview).toHaveBeenCalledWith('帮我换掉这个动作')
     expect(askCoach).not.toHaveBeenCalled()
   })
+
+  it('keeps a capability question in the ask path so the Coach can ask for confirmation', async () => {
+    mount()
+    await send('那你现在能更新到我的训练计划中吗？')
+    expect(askCoach).toHaveBeenCalledWith('那你现在能更新到我的训练计划中吗？')
+    expect(requestReview).not.toHaveBeenCalled()
+  })
+
+  it('routes an explicit formal improvement request to review without another ask round', async () => {
+    mount()
+    await send('正式改进计划')
+    expect(requestReview).toHaveBeenCalledWith('正式改进计划')
+    expect(askCoach).not.toHaveBeenCalled()
+  })
 })
 
 describe('a request the server refuses', () => {
