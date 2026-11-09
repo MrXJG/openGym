@@ -5,4 +5,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+EnvironmentFile=/etc/opengym-upstream-watch.env
 ExecStart=/usr/local/libexec/opengym-upstream-watch
