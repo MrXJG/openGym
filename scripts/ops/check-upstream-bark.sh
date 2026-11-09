@@ -14,7 +14,7 @@ if [ ! -d "$REPO_DIR/objects" ]; then
   git init --bare "$REPO_DIR" >/dev/null
   git -C "$REPO_DIR" remote add upstream "$UPSTREAM_REPO"
 fi
-git -C "$REPO_DIR" fetch --quiet --filter=blob:none --no-tags upstream "$UPSTREAM_REF"
+git -C "$REPO_DIR" fetch --quiet --depth=100 --filter=blob:none --no-tags upstream "$UPSTREAM_REF"
 commit=$(git -C "$REPO_DIR" rev-parse FETCH_HEAD)
 
 if [ ! -f "$STATE_FILE" ]; then
@@ -24,6 +24,10 @@ fi
 
 previous=$(sed -n '1p' "$STATE_FILE")
 [ "$previous" = "$commit" ] && exit 0
+
+if ! git -C "$REPO_DIR" cat-file -e "$previous^{commit}" 2>/dev/null; then
+  git -C "$REPO_DIR" fetch --quiet --deepen=500 --filter=blob:none --no-tags upstream "$UPSTREAM_REF"
+fi
 
 subjects=$(git -C "$REPO_DIR" log --format='%s' "$previous..$commit")
 files=$(git -C "$REPO_DIR" diff --name-only "$previous" "$commit")
