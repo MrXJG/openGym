@@ -1,0 +1,11 @@
+[Unit]
+Description=Check openGym upstream for updates hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+Unit=opengym-upstream-watch.service
+
+[Install]
+WantedBy=timers.target
