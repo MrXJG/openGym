@@ -76,7 +76,6 @@ lines = [
     f"上游 main 有 {len(subjects)} 个新提交，涉及 {len(files)} 个文件。",
     f"更新内容：{cat_text}。",
     f"变更范围：{area_text}。",
-    "请告诉我“同步 openGym 上游并部署”，我会先检查差异、测试并备份后再更新。",
 ]
 print("\n".join(lines))
 ')
